@@ -33,20 +33,19 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y fontforge ttfautohint
+          sudo apt-get install -y fontforge ttfautohint python3-pip python3-fontforge
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
+      # actions/setup-python は PYTHONHOME/PYTHONPATH を設定してしまい、
+      # apt 版 fontforge の内蔵 Python (システム python3) が標準ライブラリを
+      # 見失う (import math すら失敗する) ため使用しない。
+      # 合成は「apt で入れた fontforge + システム python3」で統一する。
       - name: Install Python dependencies
-        run: pip install -r requirements.txt
+        run: python3 -m pip install --break-system-packages -r requirements.txt
 
       # ------------------------------------------------------------
       # 英数字ソース (Ioskeley Mono) を Iosevka でビルドする。
@@ -81,6 +80,9 @@ jobs:
       # ------------------------------------------------------------
       - name: Merge fonts (build all variants)
         run: |
+          # fontforge の内蔵 Python が標準ライブラリを見失わないよう、
+          # 念のため Python 関連の環境変数をクリアしてから実行する。
+          unset PYTHONHOME PYTHONPATH PYTHONSTARTUP
           chmod +x build.sh
           ./build.sh
 
