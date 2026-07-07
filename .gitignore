@@ -1,0 +1,16 @@
+# ビルド生成物
+build/
+release/
+*.zip
+
+# Iosevka でビルドして source/ に配置される英数字ソース (CI/ローカルで生成)
+source/IoskeleyMono-*.ttf
+source/IoskeleyMonoLG-*.ttf
+
+# Iosevka チェックアウト先 (ローカルビルド時)
+iosevka-src/
+Iosevka/
+
+# Python
+__pycache__/
+*.pyc

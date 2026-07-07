@@ -1,0 +1,158 @@
+name: Build and Release Font
+
+# バージョンタグ (例: v1.0.0) の push で起動
+# リリース手順: git tag v1.0.0 && git push origin v1.0.0
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v1.0.0)"
+        required: false
+        default: "v0.0.0-test"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout Iosevka source
+        uses: actions/checkout@v4
+        with:
+          repository: be5invis/Iosevka
+          path: iosevka-src
+          fetch-depth: 1
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontforge ttfautohint
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      # ------------------------------------------------------------
+      # 英数字ソース (Ioskeley Mono) を Iosevka でビルドする。
+      #   IoskeleyMono   : リガチャ無効版
+      #   IoskeleyMonoLG : リガチャ有効版
+      # ------------------------------------------------------------
+      - name: Build Ioskeley Mono (Iosevka)
+        run: |
+          cp private-build-plans.toml iosevka-src/
+          cd iosevka-src
+          npm install
+          npm run build -- contents::IoskeleyMono contents::IoskeleyMonoLG
+
+      - name: Verify Iosevka build output
+        run: |
+          for plan in IoskeleyMono IoskeleyMonoLG; do
+            if [ ! -d "iosevka-src/dist/${plan}/TTF" ]; then
+              echo "Iosevka build output for ${plan} not found!"
+              exit 1
+            fi
+          done
+
+      - name: Stage Ioskeley Mono TTFs into source/
+        run: |
+          cp iosevka-src/dist/IoskeleyMono/TTF/*.ttf source/
+          cp iosevka-src/dist/IoskeleyMonoLG/TTF/*.ttf source/
+          echo "--- staged source fonts ---"
+          ls -1 source/*.ttf
+
+      # ------------------------------------------------------------
+      # BIZ UD Gothic と合成し、全バリアントを build/ に生成
+      # ------------------------------------------------------------
+      - name: Merge fonts (build all variants)
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Set release version
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ------------------------------------------------------------
+      # リリース用に zip をグルーピング (udev-gothic 互換)
+      #   *HS*  -> IoskeleyMonoJP_HS_<ver>.zip (全角スペース不可視版)
+      #   *NF*  -> IoskeleyMonoJP_NF_<ver>.zip (Nerd Fonts 版)
+      #   残り  -> IoskeleyMonoJP_<ver>.zip    (通常版・LG版・JPDOC版など)
+      # 判定順に mv することで多重該当を避ける。
+      # ------------------------------------------------------------
+      - name: Package release archives
+        run: |
+          VER="${{ steps.vars.outputs.tag }}"
+          mkdir -p "release/IoskeleyMonoJP_HS_${VER}"
+          mkdir -p "release/IoskeleyMonoJP_NF_${VER}"
+          mkdir -p "release/IoskeleyMonoJP_${VER}"
+
+          shopt -s nullglob
+          mv build/IoskeleyMonoJP*HS*-*.ttf "release/IoskeleyMonoJP_HS_${VER}/" 2>/dev/null || true
+          mv build/IoskeleyMonoJP*NF*-*.ttf "release/IoskeleyMonoJP_NF_${VER}/" 2>/dev/null || true
+          mv build/IoskeleyMonoJP*-*.ttf "release/IoskeleyMonoJP_${VER}/" 2>/dev/null || true
+
+          # 各フォルダにライセンスを同梱
+          for d in release/*/; do
+            cp LICENSE "$d/"
+          done
+
+          cd release
+          for d in */; do
+            name="${d%/}"
+            zip -r "../${name}.zip" "$d"
+          done
+          cd ..
+          echo "--- release artifacts ---"
+          ls -1 *.zip
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: "Ioskeley Mono JP ${{ steps.vars.outputs.tag }}"
+          body: |
+            ## Ioskeley Mono JP ${{ steps.vars.outputs.tag }}
+
+            BIZ UD Gothic (日本語・記号) と Ioskeley Mono (英数字) を合成したプログラミング向けフォントです。
+
+            ### ダウンロード
+            - `IoskeleyMonoJP_${{ steps.vars.outputs.tag }}.zip` — 通常版。リガチャ無効(既定)／有効(`LG`)、3:5幅(`35`)、日本語文書向け(`JPDOC`)を同梱。
+            - `IoskeleyMonoJP_NF_${{ steps.vars.outputs.tag }}.zip` — Nerd Fonts 版。ターミナル向けアイコンを収録(`NF` / `NFLG`)。
+            - `IoskeleyMonoJP_HS_${{ steps.vars.outputs.tag }}.zip` — 全角スペース不可視版。
+
+            ### ファイル名の見方
+            `IoskeleyMonoJP<修飾子>-<スタイル>.ttf`
+            - `35` = 半角3:全角5 幅 / (無印) = 半角1:全角2 幅
+            - `LG` = リガチャ有効 / (無印) = リガチャ無効
+            - `NF` = Nerd Fonts 収録
+            - `JPDOC` = 日本語文書頻出記号を全角優先
+            - `HS` = 全角スペース不可視
+
+            詳細は [README](https://github.com/${{ github.repository }}#readme) を参照してください。
+          files: |
+            IoskeleyMonoJP_${{ steps.vars.outputs.tag }}.zip
+            IoskeleyMonoJP_NF_${{ steps.vars.outputs.tag }}.zip
+            IoskeleyMonoJP_HS_${{ steps.vars.outputs.tag }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
