@@ -1,5 +1,9 @@
 # Ioskeley Mono JP
 
+<p align="center">
+  <img src="./assets/sample-rust.png" alt="Ioskeley Mono JP で描画した Rust コード" width="720">
+</p>
+
 **Ioskeley Mono JP** は、日本語文字に [BIZ UDゴシック](https://github.com/googlefonts/morisawa-biz-ud-gothic)、英数字に [Ioskeley Mono](https://github.com/ahatem/IoskeleyMono) を使って合成した、プログラミング向けの日本語等幅フォントです。
 
 [UDEV Gothic](https://github.com/yuru7/udev-gothic) の優れた合成基盤をベースに、英数字部分を JetBrains Mono から **Ioskeley Mono** に差し替えています。Ioskeley Mono は [Iosevka](https://github.com/be5invis/Iosevka) を [Berkeley Mono](https://berkeleygraphics.com/typefaces/berkeley-mono/) 風に構成した、幾何学的で締まりのある等幅フォントです。
@@ -19,6 +23,28 @@
 - [Nerd Fonts](https://www.nerdfonts.com/) 追加合成版 (NF) でターミナルのアイコン表示に対応
 - 全角スペースの可視化 (不可視版 HS も用意)
 - BIZ UDゴシック相当の IVS (異体字シーケンス) に対応
+
+## コードサンプル
+
+いずれも Nerd Fonts + リガチャ有効版 (`NFLG`) で描画しています。画像は [`scripts/generate-samples.sh`](./scripts/generate-samples.sh) で [silicon](https://github.com/Aloxaf/silicon) を使って生成しています。
+
+### TypeScript
+
+<p align="center">
+  <img src="./assets/sample-typescript.png" alt="Ioskeley Mono JP で描画した TypeScript コード" width="720">
+</p>
+
+### Python
+
+<p align="center">
+  <img src="./assets/sample-python.png" alt="Ioskeley Mono JP で描画した Python コード" width="720">
+</p>
+
+サンプルコードは [`scripts/samples/`](./scripts/samples/) にあります。画像を再生成するには、フォントをインストールした状態で以下を実行します。
+
+```sh
+./scripts/generate-samples.sh
+```
 
 ## ダウンロード
 
@@ -54,17 +80,58 @@
    - **macOS** — ダブルクリック → フォントをインストール
    - **Linux** — `~/.local/share/fonts/` にコピーして `fc-cache -fv`
 
+### Nix
+
+[Flake](./flake.nix) からフォントをインストールできます (Releases の zip を取得して展開します)。
+
+```sh
+# 一時的に試す
+nix shell github:takeshiD/IoskeleyMonoJP
+
+# プロファイルにインストール
+nix profile install github:takeshiD/IoskeleyMonoJP          # 通常版
+nix profile install github:takeshiD/IoskeleyMonoJP#ioskeley-mono-jp-nf  # Nerd Fonts 版
+```
+
+NixOS / home-manager では `fonts.packages` (nix-darwin は `fonts.packages`、home-manager は `home.packages`) に追加します。
+
+```nix
+# flake.nix の inputs に追加
+inputs.ioskeley-mono-jp.url = "github:takeshiD/IoskeleyMonoJP";
+
+# NixOS の例
+fonts.packages = [ inputs.ioskeley-mono-jp.packages.${pkgs.system}.default ];
+```
+
+#### バイナリキャッシュ (Cachix)
+
+CI で flake の出力を [Cachix](https://www.cachix.org/) (`ioskeley-mono-jp`) に push しています。以下を設定するとビルドをスキップしてキャッシュから取得できます。
+
+```sh
+# 一時的に使う (公開鍵はキャッシュのページに表示されるものに置き換え)
+nix develop \
+  --option extra-substituters https://ioskeley-mono-jp.cachix.org \
+  --option extra-trusted-public-keys ioskeley-mono-jp.cachix.org-1:<PUBLIC_KEY>
+```
+
+`nix.conf` (`~/.config/nix/nix.conf` など) に恒久設定する場合:
+
+```conf
+extra-substituters = https://ioskeley-mono-jp.cachix.org
+extra-trusted-public-keys = ioskeley-mono-jp.cachix.org-1:<PUBLIC_KEY>
+```
+
 ## バリエーション早見表
 
-| 種類 | 説明 | 命名パターン |
-| --- | --- | --- |
-| 幅 半角1:全角2 | 英数字を縮小し、半角1:全角2 の比率で合成 | ファイル名に `35` を **含まない** |
-| 幅 半角3:全角5 | 英数字を縮小せず、半角3:全角5 の比率で合成 | ファイル名に `35` を含む |
-| リガチャ有効 | Ioskeley Mono (Iosevka) のリガチャを有効化 | ファイル名に `LG` を含む |
-| リガチャ無効 | リガチャなし (既定) | `LG` を含まない |
-| Nerd Fonts | 拡張 Powerline 記号などを追加合成 | ファイル名に `NF` を含む |
-| 日本語文書向け | 頻出記号を全角優先で表示 | ファイル名に `JPDOC` を含む |
-| 全角スペース不可視 | 全角スペースを一般的なフォント同様に非表示 | ファイル名に `HS` を含む |
+| 種類               | 説明                                       | 命名パターン                      |
+| ---                | ---                                        | ---                               |
+| 幅 半角1:全角2     | 英数字を縮小し、半角1:全角2 の比率で合成   | ファイル名に `35` を **含まない** |
+| 幅 半角3:全角5     | 英数字を縮小せず、半角3:全角5 の比率で合成 | ファイル名に `35` を含む          |
+| リガチャ有効       | Ioskeley Mono (Iosevka) のリガチャを有効化 | ファイル名に `LG` を含む          |
+| リガチャ無効       | リガチャなし (既定)                        | `LG` を含まない                   |
+| Nerd Fonts         | 拡張 Powerline 記号などを追加合成          | ファイル名に `NF` を含む          |
+| 日本語文書向け     | 頻出記号を全角優先で表示                   | ファイル名に `JPDOC` を含む       |
+| 全角スペース不可視 | 全角スペースを一般的なフォント同様に非表示 | ファイル名に `HS` を含む          |
 
 ## ビルド
 
@@ -73,6 +140,21 @@
 - [FontForge](https://fontforge.org/) (`fontforge --lang=py -script` が使えるもの)
 - Python `>=3.12` + [`requirements.txt`](./requirements.txt) (fonttools, ttfautohint-py)
 - Node.js `>=20` (英数字ソースを Iosevka でビルドするため)
+
+#### Nix (推奨・再現性あり)
+
+[Flake](./flake.nix) が上記の依存 (FontForge / Python+fonttools / Node.js / silicon など) をまとめた開発シェルを提供します。
+
+```sh
+nix develop           # 開発シェルに入る
+```
+
+[direnv](https://direnv.net/) を使う場合は同梱の [`.envrc.local`](./.envrc.local) (`use flake`) を利用してください。
+
+```sh
+echo 'source_env_if_exists .envrc.local' > .envrc  # 未作成なら
+direnv allow
+```
 
 ### 手順
 
@@ -104,6 +186,14 @@ pip install -r requirements.txt
 ```sh
 git tag v1.0.0 && git push origin v1.0.0
 ```
+
+同ワークフローの `cachix` ジョブが、flake の出力 (devShell / フォントパッケージ) を Cachix (`ioskeley-mono-jp`) に push します。事前に以下を設定してください。
+
+- [cachix.org](https://www.cachix.org/) で `ioskeley-mono-jp` キャッシュを作成
+- リポジトリ Secrets に `CACHIX_AUTH_TOKEN` を登録 (キャッシュ設定の Auth token)
+
+> **フォントパッケージのキャッシュについて**
+> `packages` は Releases の zip を固定ハッシュで取得します。zip は再現ビルドにならないため、**新しいバージョンをリリースした後**に、そのリリースの zip ハッシュで [`flake.nix`](./flake.nix) の `version` / `sha256` を更新して push してください (`nix store prefetch-file <URL>` でハッシュを取得できます)。flake.nix が指すバージョンの資産が揃っている場合のみ、パッケージが Cachix に push されます (揃っていなければ `cachix` ジョブ内でスキップされ、devShell のみ push されます)。
 
 ## ライセンス
 

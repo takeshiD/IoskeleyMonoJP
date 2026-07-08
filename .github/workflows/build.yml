@@ -158,3 +158,47 @@ jobs:
             IoskeleyMonoJP_HS_${{ steps.vars.outputs.tag }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------
+  # flake の出力を Cachix にビルド & push する。
+  #   - devShell        : nix develop の依存一式 (毎回確実にキャッシュ)
+  #   - packages.*      : Releases の zip を取得するフォントパッケージ
+  #                       (flake.nix が固定するバージョンの資産が必要。
+  #                        best-effort とし失敗しても全体は止めない)
+  #
+  # 必要な設定:
+  #   - cachix.org で `ioskeley-mono-jp` キャッシュを作成
+  #   - リポジトリ Secrets に CACHIX_AUTH_TOKEN を登録
+  #     (cachix.org のキャッシュ設定 → Auth token)
+  # ------------------------------------------------------------
+  cachix:
+    needs: build
+    runs-on: ubuntu-latest
+    # authToken が無い環境 (fork の PR など) では skip する
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.version != '' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v30
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Set up Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: ioskeley-mono-jp
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # devShell の依存一式をストアに実体化する (cachix-action が push する)
+      - name: Build devShell
+        run: nix develop --profile dev-profile --command true
+
+      # Releases の zip を取得するフォントパッケージ。
+      # flake.nix が指すバージョンの資産・ハッシュが揃っている場合のみ成功する。
+      - name: Build font packages (best-effort)
+        continue-on-error: true
+        run: nix build --print-build-logs .#ioskeley-mono-jp .#ioskeley-mono-jp-nf
